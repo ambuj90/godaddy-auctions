@@ -15,19 +15,18 @@ export default async function handler(req, res) {
     }
 
     try {
-        // Parse the incoming form data
         const form = formidable({ keepExtensions: true });
         const [fields, files] = await form.parse(req);
 
-        // Access the file
         const file = files.file;
         if (!file || (Array.isArray(file) && file.length === 0)) {
             return res.status(400).json({ error: 'No file provided' });
         }
 
         const filepath = Array.isArray(file) ? file[0].filepath : file.filepath;
+        const originalFilename = Array.isArray(file) ? file[0].originalFilename : file.originalFilename;
+        const source = originalFilename || 'unknown_source.csv';
 
-        // Read and parse the CSV file
         const csv = await fs.readFile(filepath, 'utf-8');
         const records = parse(csv, {
             columns: true,
@@ -39,51 +38,36 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: 'CSV file is empty or invalid' });
         }
 
-        // Connect to MongoDB
         const client = await clientPromise;
         const db = client.db('domain_auction');
         const collection = db.collection('auctions');
 
-        // Process each row
-        const inserted = [];
+        const newDocs = [];
+        const newDomainsSet = new Set();
         const skipped = [];
 
         for (const row of records) {
-            // Get domain name from CSV
             const domainRaw = row['Domain Name'] || row['DOMAIN'] || row['domain'] || row['Domain'];
-
             if (!domainRaw || typeof domainRaw !== 'string') {
                 skipped.push('Missing domain');
                 continue;
             }
 
-            // Clean domain name
             const domain = domainRaw.trim().toLowerCase();
+            newDomainsSet.add(domain);
 
-            // Check if domain already exists
-            const exists = await collection.findOne({ domain_name: domain });
-            if (exists) {
-                skipped.push(domain);
-                continue;
-            }
-
-            // Parse auction end time
             let auctionEndTime;
             const endTimeRaw = row['Auction End Time'] || row['Auction Ends'] || row['End Time'];
-
             try {
                 auctionEndTime = endTimeRaw ? new Date(endTimeRaw) : new Date();
-                // Check if date is valid
-                if (isNaN(auctionEndTime.getTime())) {
-                    auctionEndTime = new Date(); // Default to current time
-                }
-            } catch (error) {
-                auctionEndTime = new Date(); // Default to current time
+                if (isNaN(auctionEndTime.getTime())) auctionEndTime = new Date();
+            } catch {
+                auctionEndTime = new Date();
             }
 
-            // Create auction document
-            const auctionDoc = {
+            newDocs.push({
                 domain_name: domain,
+                source,
                 traffic: parseInt(row['Traffic'] || 0, 10) || 0,
                 bids: parseInt(row['Bids'] || 0, 10) || 0,
                 price: parseFloat(row['Price'] || 0) || 0,
@@ -95,15 +79,29 @@ export default async function handler(req, res) {
                 majestic_cf: parseInt(row['Majestic CF'] || 0, 10) || 0,
                 backlinks: parseInt(row['Backlinks'] || 0, 10) || 0,
                 referring_domains: parseInt(row['Referring Domains'] || 0, 10) || 0,
-                created_at: new Date()
-            };
-
-            // Insert into database
-            await collection.insertOne(auctionDoc);
-            inserted.push(domain);
+                created_at: new Date(),
+            });
         }
 
-        // Send response
+        // Step 1: Get current domains
+        const existingDocs = await collection.find({}, { projection: { domain_name: 1 } }).toArray();
+        const existingDomainsSet = new Set(existingDocs.map(doc => doc.domain_name));
+
+        // Step 2: Keep only domains in both new and existing
+        const intersectedDomains = [...newDomainsSet].filter(domain => existingDomainsSet.has(domain));
+
+        // Step 3: Remove all old data
+        await collection.deleteMany({});
+
+        // Step 4: Insert only intersected domain data from new upload
+        const inserted = [];
+        for (const doc of newDocs) {
+            if (intersectedDomains.includes(doc.domain_name)) {
+                await collection.insertOne(doc);
+                inserted.push(doc.domain_name);
+            }
+        }
+
         return res.status(200).json({ inserted, skipped });
     } catch (error) {
         console.error('Upload error:', error);

@@ -19,18 +19,24 @@ export default function Upload({ onUploadSuccess }) {
         setError(null);
         setResult(null);
 
+        console.log('Sending upload request with file:', file.name);
+
         try {
             const res = await fetch('/api/upload', {
-                method: 'POST',
+                method: 'POST',  // Explicitly specify POST method
                 body: formData,
+                // Don't set Content-Type header, let the browser set it with the boundary
             });
+
+            console.log('Upload response status:', res.status);
 
             if (!res.ok) {
                 const errorData = await res.json();
-                throw new Error(errorData.error || 'Failed to upload file');
+                throw new Error(errorData.error || `Failed to upload file: ${res.status}`);
             }
 
             const data = await res.json();
+            console.log('Upload success:', data);
             setResult(data);
             if (onUploadSuccess) onUploadSuccess();
         } catch (err) {
@@ -41,10 +47,17 @@ export default function Upload({ onUploadSuccess }) {
         }
     };
 
+    // Rest of the component remains the same
+    // ...
+
+
     return (
         <div className="bg-white rounded-lg shadow">
             <div className="p-6 text-center">
                 <h2 className="text-xl font-medium mb-4">Upload Auction CSV</h2>
+                <p className="text-sm text-gray-500 mb-4">
+                    Note: Uploading a new CSV will replace all existing auction data
+                </p>
 
                 <div className="max-w-md mx-auto">
                     <label className="block mb-4">
@@ -84,6 +97,9 @@ export default function Upload({ onUploadSuccess }) {
                         <div className="mt-4 text-sm bg-green-50 p-4 rounded-md text-left">
                             <p>✅ <strong>Inserted:</strong> {result.inserted.length} domains</p>
                             <p>🚫 <strong>Skipped:</strong> {result.skipped.length} domains</p>
+                            {result.removed > 0 && (
+                                <p>🗑️ <strong>Removed:</strong> {result.removed} previous entries</p>
+                            )}
                         </div>
                     )}
                 </div>

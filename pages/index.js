@@ -1,4 +1,3 @@
-// pages/index.js
 import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import AuctionTable from '../components/AuctionTable';
@@ -44,37 +43,40 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Head>
-        <title>GoDaddy Auctions Viewer</title>
+        <title>Auction Dashboard</title>
+        <meta name="description" content="GoDaddy Auctions Viewer" />
       </Head>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
         <h1 className="text-2xl font-bold text-gray-800 mb-6">Auction Dashboard</h1>
 
-        <Upload onUploadSuccess={() => fetchAuctions(page)} />
+        <Upload onUploadSuccess={() => fetchAuctions(1)} />
 
-        {loading && <p className="text-gray-500 my-4 text-center">Loading auctions...</p>}
-        {error && <p className="text-red-500 my-4 text-center">{error}</p>}
+        {loading && <p className="text-gray-500 mt-4 text-center">Loading auctions...</p>}
+        {error && <p className="text-red-500 mt-4 text-center">{error}</p>}
 
         {!loading && !error && auctions.length > 0 && (
           <>
             <AuctionTable data={auctions} />
 
-            <div className="flex justify-center mt-6 mb-8">
+            <div className="flex justify-center mt-6">
               <nav className="inline-flex rounded-md shadow">
                 <button
                   onClick={() => setPage((prev) => Math.max(1, prev - 1))}
                   disabled={page === 1}
-                  className="px-3 py-1 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-l disabled:opacity-50"
                 >
                   ◀ Prev
                 </button>
-                <div className="px-4 py-1 border-t border-b border-gray-300 bg-white text-sm text-gray-700">
+
+                <span className="px-4 py-2 bg-white border-t border-b border-gray-300 text-sm text-gray-600">
                   Page {page} of {totalPages || 1}
-                </div>
+                </span>
+
                 <button
                   onClick={() => setPage((prev) => (page < totalPages ? prev + 1 : prev))}
                   disabled={page >= totalPages}
-                  className="px-3 py-1 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-r disabled:opacity-50"
                 >
                   Next ▶
                 </button>
